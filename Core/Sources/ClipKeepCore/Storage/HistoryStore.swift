@@ -46,10 +46,23 @@ public final class HistoryStore {
         return m
     }
 
-    /// Insert a clip. (De-duplication added in Task 2.2.)
+    public func mostRecent() throws -> Clip? {
+        try dbQueue.read { db in
+            try Clip.order(Column("lastUsedAt").desc).fetchOne(db)
+        }
+    }
+
+    /// Insert, or if the content matches the most-recent clip, bump it to the top.
     @discardableResult
     public func record(_ clip: Clip) throws -> Clip {
         try dbQueue.write { db in
+            if let latest = try Clip.order(Column("lastUsedAt").desc).fetchOne(db),
+               latest.contentHash == clip.contentHash {
+                var updated = latest
+                updated.lastUsedAt = clip.lastUsedAt
+                try updated.update(db)
+                return updated
+            }
             var c = clip
             try c.insert(db)
             return c
