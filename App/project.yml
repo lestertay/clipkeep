@@ -2,7 +2,7 @@ name: ClipKeep
 options:
   bundleIdPrefix: com.clipkeep
   deploymentTarget:
-    macOS: "13.0"
+    macOS: "14.0"
   createIntermediateGroups: true
 packages:
   ClipKeepCore:
