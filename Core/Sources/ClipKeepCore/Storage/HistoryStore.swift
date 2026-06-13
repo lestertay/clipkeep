@@ -43,6 +43,13 @@ public final class HistoryStore {
             }
             try db.create(index: "clip_lastUsedAt", on: "clip", columns: ["lastUsedAt"])
         }
+        m.registerMigration("v2_fts") { db in
+            try db.create(virtualTable: "clip_ft", using: FTS5()) { t in
+                t.synchronize(withTable: "clip")
+                t.column("text")
+                t.column("preview")
+            }
+        }
         return m
     }
 
@@ -72,6 +79,31 @@ public final class HistoryStore {
     public func recent(limit: Int) throws -> [Clip] {
         try dbQueue.read { db in
             try Clip.order(Column("lastUsedAt").desc).limit(limit).fetchAll(db)
+        }
+    }
+
+    public func search(_ rawQuery: String, limit: Int) throws -> [Clip] {
+        let trimmed = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return try recent(limit: limit) }
+
+        // Build a prefix MATCH pattern: each token becomes `"token"*`.
+        let pattern = trimmed
+            .split(whereSeparator: { $0 == " " })
+            .map { token -> String in
+                let escaped = token.replacingOccurrences(of: "\"", with: "\"\"")
+                return "\"\(escaped)\"*"
+            }
+            .joined(separator: " ")
+
+        return try dbQueue.read { db in
+            let sql = """
+                SELECT clip.* FROM clip
+                JOIN clip_ft ON clip_ft.rowid = clip.id
+                WHERE clip_ft MATCH ?
+                ORDER BY clip.lastUsedAt DESC
+                LIMIT ?
+                """
+            return try Clip.fetchAll(db, sql: sql, arguments: [pattern, limit])
         }
     }
 }
