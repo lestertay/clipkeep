@@ -15,3 +15,6 @@ xcuserdata/
 
 App/ClipKeep.xcodeproj/
 App/build/
+
+# SwiftPM lockfile for the local library package (resolved transitively by the app)
+Core/Package.resolved
