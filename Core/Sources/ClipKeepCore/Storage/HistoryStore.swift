@@ -123,6 +123,27 @@ public final class HistoryStore {
         }
     }
 
+    /// Drop oldest image clips (by lastUsedAt) until total image bytes are within the cap.
+    /// Returns image/thumb filenames of removed clips for on-disk cleanup.
+    @discardableResult
+    public func pruneImages(maxTotalBytes: Int) throws -> [String] {
+        try dbQueue.write { db in
+            let images = try Clip
+                .filter(Column("kind") == ClipKind.image.rawValue)
+                .order(Column("lastUsedAt").desc)
+                .fetchAll(db)
+
+            var running = images.reduce(0) { $0 + ($1.byteSize ?? 0) }
+            var removed: [String] = []
+            for clip in images.reversed() where running > maxTotalBytes {   // oldest first
+                running -= clip.byteSize ?? 0
+                if let id = clip.id { _ = try Clip.deleteOne(db, key: id) }
+                removed.append(contentsOf: [clip.imageFile, clip.thumbFile].compactMap { $0 })
+            }
+            return removed
+        }
+    }
+
     public func search(_ rawQuery: String, limit: Int) throws -> [Clip] {
         let trimmed = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return try recent(limit: limit) }
