@@ -1,5 +1,6 @@
 // App/Sources/AppEnvironment.swift
 import AppKit
+import SwiftUI
 import ClipKeepCore
 
 /// Owns and wires the long-lived objects.
@@ -67,5 +68,24 @@ final class AppEnvironment {
         monitorRunner.setPaused(preferences.paused)
         monitorRunner.start()
         hotkeyManager = HotkeyManager { [weak self] in self?.popupController.toggle() }
+    }
+
+    func clearHistory() {
+        let removed = (try? store.clearAll()) ?? []
+        imageStore.deleteFiles(removed)
+    }
+
+    func presentSettings(reusing window: inout NSWindow?) {
+        if let window { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }
+        let view = SettingsView(preferences: preferences, onClearHistory: { [weak self] in self?.clearHistory() })
+        let hosting = NSHostingController(rootView: view)
+        let win = NSWindow(contentViewController: hosting)
+        win.title = "ClipKeep Settings"
+        win.styleMask = [.titled, .closable]
+        win.isReleasedWhenClosed = false
+        win.center()
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        window = win
     }
 }
