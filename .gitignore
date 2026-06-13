@@ -12,3 +12,6 @@ xcuserdata/
 .swiftpm/
 .build/
 *.xcodeproj/project.xcworkspace/xcuserdata/
+
+App/ClipKeep.xcodeproj/
+App/build/
