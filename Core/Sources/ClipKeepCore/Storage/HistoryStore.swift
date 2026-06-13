@@ -82,6 +82,26 @@ public final class HistoryStore {
         }
     }
 
+    /// Delete one clip; returns the image/thumb filenames that should be removed from disk.
+    @discardableResult
+    public func delete(id: Int64) throws -> [String] {
+        try dbQueue.write { db in
+            guard let clip = try Clip.fetchOne(db, key: id) else { return [] }
+            _ = try Clip.deleteOne(db, key: id)
+            return [clip.imageFile, clip.thumbFile].compactMap { $0 }
+        }
+    }
+
+    /// Delete everything; returns all image/thumb filenames to remove from disk.
+    @discardableResult
+    public func clearAll() throws -> [String] {
+        try dbQueue.write { db in
+            let files = try Clip.fetchAll(db).flatMap { [$0.imageFile, $0.thumbFile].compactMap { $0 } }
+            _ = try Clip.deleteAll(db)
+            return files
+        }
+    }
+
     public func search(_ rawQuery: String, limit: Int) throws -> [Clip] {
         let trimmed = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return try recent(limit: limit) }
