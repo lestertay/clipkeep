@@ -19,6 +19,9 @@ final class AppEnvironment {
     let imageStore: ImageStore
     let coordinator: CaptureCoordinator
     let monitorRunner: MonitorRunner
+    let pasteService: PasteService
+    let popupController: PopupController
+    private var hotkeyManager: HotkeyManager?
 
     init() {
         let paths = AppPaths.standard()
@@ -55,10 +58,14 @@ final class AppEnvironment {
             }
         }
         self.monitorRunner = MonitorRunner(monitor: monitor)
+
+        self.pasteService = PasteService(paths: paths)
+        self.popupController = PopupController(store: self.store, pasteService: pasteService, thumbsDir: paths.thumbsDir)
     }
 
     func start() {
         monitorRunner.setPaused(preferences.paused)
         monitorRunner.start()
+        hotkeyManager = HotkeyManager { [weak self] in self?.popupController.toggle() }
     }
 }
