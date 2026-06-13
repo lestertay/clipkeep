@@ -9,7 +9,9 @@ extension Clip: FetchableRecord, MutablePersistableRecord {
     }
 }
 
-public final class HistoryStore {
+/// `@unchecked Sendable`: the only stored state is GRDB's `DatabaseQueue`, which is
+/// itself `Sendable` and serializes all database access internally.
+public final class HistoryStore: @unchecked Sendable {
     private let dbQueue: DatabaseQueue
 
     public init(path: String) throws {

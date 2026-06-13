@@ -12,7 +12,9 @@ public struct CaptureConfig {
     }
 }
 
-public final class CaptureCoordinator {
+/// `@unchecked Sendable`: holds a `Sendable` `HistoryStore`, a value-type `ImageStore`
+/// (URLs only), and value-type filter/extractor/config. All stored properties are `let`.
+public final class CaptureCoordinator: @unchecked Sendable {
     private let store: HistoryStore
     private let imageStore: ImageStore
     private let filter: PrivacyFilter
@@ -51,5 +53,15 @@ public final class CaptureCoordinator {
                             createdAt: now, lastUsedAt: now)
             try store.record(clip)
         }
+    }
+
+    /// Convenience used by the app after each capture. Returns image files removed (already deleted from disk).
+    @discardableResult
+    public func runRetentionSweep(store: HistoryStore, imageStore: ImageStore,
+                                  maxCount: Int, maxAge: TimeInterval, maxImageBytes: Int) throws -> [String] {
+        var removed = try store.prune(maxCount: maxCount, maxAge: maxAge, now: Date())
+        removed += try store.pruneImages(maxTotalBytes: maxImageBytes)
+        imageStore.deleteFiles(removed)
+        return removed
     }
 }
