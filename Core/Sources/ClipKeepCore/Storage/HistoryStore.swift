@@ -82,6 +82,27 @@ public final class HistoryStore {
         }
     }
 
+    /// Remove clips beyond `maxCount` (keeping newest by lastUsedAt) or older than `maxAge`
+    /// seconds. Returns image/thumb filenames of removed clips for on-disk cleanup.
+    @discardableResult
+    public func prune(maxCount: Int, maxAge: TimeInterval, now: Date) throws -> [String] {
+        try dbQueue.write { db in
+            let cutoff = now.addingTimeInterval(-maxAge)
+            let all = try Clip.order(Column("lastUsedAt").desc).fetchAll(db)
+
+            var toDelete: [Clip] = []
+            for (index, clip) in all.enumerated() {
+                let tooOld = maxAge.isFinite && clip.lastUsedAt < cutoff
+                let overCount = index >= maxCount
+                if tooOld || overCount { toDelete.append(clip) }
+            }
+            for clip in toDelete {
+                if let id = clip.id { _ = try Clip.deleteOne(db, key: id) }
+            }
+            return toDelete.flatMap { [$0.imageFile, $0.thumbFile].compactMap { $0 } }
+        }
+    }
+
     /// Delete one clip; returns the image/thumb filenames that should be removed from disk.
     @discardableResult
     public func delete(id: Int64) throws -> [String] {
