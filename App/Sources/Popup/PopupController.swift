@@ -37,7 +37,7 @@ final class PopupController {
         let size = NSSize(width: 360, height: 420)
         let panel = PopupPanel(contentRect: NSRect(origin: .zero, size: size))
         panel.contentView = hosting
-        center(panel)
+        positionAtCursor(panel)
         panel.makeKeyAndOrderFront(nil)
         self.panel = panel
 
@@ -62,11 +62,20 @@ final class PopupController {
         panel = nil
     }
 
-    private func center(_ panel: NSPanel) {
-        guard let screen = NSScreen.main else { return }
-        let f = screen.visibleFrame
+    /// Position the panel near the mouse cursor, on the cursor's screen,
+    /// clamped so the whole panel stays within that screen's visible area.
+    private func positionAtCursor(_ panel: NSPanel) {
+        let mouse = NSEvent.mouseLocation   // global screen coords, bottom-left origin
         let size = panel.frame.size
-        let origin = NSPoint(x: f.midX - size.width / 2, y: f.midY - size.height / 2 + 80)
-        panel.setFrameOrigin(origin)
+        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+        let visible = screen?.visibleFrame ?? NSRect(origin: .zero, size: size)
+
+        // Cursor sits just inside the panel's top-left; panel extends down-right.
+        var x = mouse.x - 16
+        var y = mouse.y - size.height + 16
+
+        x = min(max(x, visible.minX), visible.maxX - size.width)
+        y = min(max(y, visible.minY), visible.maxY - size.height)
+        panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 }
