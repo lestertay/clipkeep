@@ -8,14 +8,17 @@ final class PopupController {
     private let store: HistoryStore
     private let pasteService: PasteService
     private let thumbsDir: URL
+    private let preferences: Preferences
     private var panel: PopupPanel?
     private var targetApp: NSRunningApplication?
     private var optionMonitor: Any?
+    private var lastTopLeft: NSPoint?
 
-    init(store: HistoryStore, pasteService: PasteService, thumbsDir: URL) {
+    init(store: HistoryStore, pasteService: PasteService, thumbsDir: URL, preferences: Preferences) {
         self.store = store
         self.pasteService = pasteService
         self.thumbsDir = thumbsDir
+        self.preferences = preferences
     }
 
     func toggle() { panel?.isVisible == true ? hide() : show() }
@@ -62,29 +65,49 @@ final class PopupController {
         panel = nil
     }
 
-    /// Position the panel just below the text insertion caret of the focused app.
-    /// Falls back to the mouse cursor for apps that don't expose caret geometry.
-    /// The chosen anchor is the desired top-left of the panel (Cocoa global coords);
-    /// the panel is then clamped to its screen's visible area.
+    /// Position the panel per the user's preference (caret / mouse / center / last position).
+    /// The anchor is the desired top-left of the panel in Cocoa global coords (bottom-left
+    /// origin), which is then clamped to its screen's visible area. Records where it landed
+    /// so the "last position" mode can reuse it.
     private func positionPanel(_ panel: NSPanel) {
         let size = panel.frame.size
+        let mode = PopupPosition(rawValue: preferences.popupPosition) ?? .caret
 
         let anchorTopLeft: NSPoint
-        if let anchor = CaretLocator.anchorRect() {
-            anchorTopLeft = NSPoint(x: anchor.minX, y: anchor.minY - 6)   // just below the caret/field
-        } else {
-            let mouse = NSEvent.mouseLocation
-            anchorTopLeft = NSPoint(x: mouse.x - 16, y: mouse.y - 16)
+        switch mode {
+        case .caret:
+            if let anchor = CaretLocator.anchorRect() {
+                anchorTopLeft = NSPoint(x: anchor.minX, y: anchor.minY - 6)   // just below the caret/field
+            } else {
+                anchorTopLeft = mouseAnchor()
+            }
+        case .mouse:
+            anchorTopLeft = mouseAnchor()
+        case .center:
+            anchorTopLeft = centerAnchor(for: size)
+        case .lastPosition:
+            anchorTopLeft = lastTopLeft ?? centerAnchor(for: size)
         }
 
-        // Panel origin is bottom-left; place its top-left at the anchor.
+        // Panel origin is bottom-left; place its top-left at the anchor, clamped on-screen.
         var x = anchorTopLeft.x
         var y = anchorTopLeft.y - size.height
-
         let screen = NSScreen.screens.first { $0.frame.contains(anchorTopLeft) } ?? NSScreen.main
         let visible = screen?.visibleFrame ?? NSRect(origin: .zero, size: size)
         x = min(max(x, visible.minX), visible.maxX - size.width)
         y = min(max(y, visible.minY), visible.maxY - size.height)
         panel.setFrameOrigin(NSPoint(x: x, y: y))
+
+        lastTopLeft = NSPoint(x: x, y: y + size.height)   // remember the placed top-left
+    }
+
+    private func mouseAnchor() -> NSPoint {
+        let m = NSEvent.mouseLocation
+        return NSPoint(x: m.x - 16, y: m.y - 16)
+    }
+
+    private func centerAnchor(for size: NSSize) -> NSPoint {
+        let vf = NSScreen.main?.visibleFrame ?? NSRect(origin: .zero, size: size)
+        return NSPoint(x: vf.midX - size.width / 2, y: vf.midY + size.height / 2)
     }
 }

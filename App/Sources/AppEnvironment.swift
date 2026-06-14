@@ -23,6 +23,7 @@ final class AppEnvironment {
     let pasteService: PasteService
     let popupController: PopupController
     private var hotkeyManager: HotkeyManager?
+    private let accessibilityPrimer = AccessibilityPrimer()
 
     init() {
         let paths = AppPaths.standard()
@@ -61,13 +62,14 @@ final class AppEnvironment {
         self.monitorRunner = MonitorRunner(monitor: monitor)
 
         self.pasteService = PasteService(paths: paths)
-        self.popupController = PopupController(store: self.store, pasteService: pasteService, thumbsDir: paths.thumbsDir)
+        self.popupController = PopupController(store: self.store, pasteService: pasteService, thumbsDir: paths.thumbsDir, preferences: preferences)
     }
 
     func start() {
         monitorRunner.setPaused(preferences.paused)
         monitorRunner.start()
         hotkeyManager = HotkeyManager { [weak self] in self?.popupController.toggle() }
+        accessibilityPrimer.start()   // prime Chromium/Electron a11y as apps activate
     }
 
     func clearHistory() {

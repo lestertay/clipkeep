@@ -21,6 +21,15 @@ struct SettingsView: View {
                 Stepper("Image store cap: \(preferences.maxImageMB) MB", value: bindingMaxImageMB, in: 128...8192, step: 128)
                 Stepper("Skip images larger than \(preferences.maxSingleImageMB) MB", value: bindingMaxSingle, in: 5...200, step: 5)
             }
+            Section("Popup") {
+                Picker("Open popup at:", selection: bindingPopupPosition) {
+                    ForEach(PopupPosition.allCases) { Text($0.label).tag($0.rawValue) }
+                }
+                if (PopupPosition(rawValue: preferences.popupPosition) ?? .caret) == .caret {
+                    Text("Falls back to the focused field, then the mouse, when an app (e.g. some Electron apps) doesn't expose its caret.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
             Section("Privacy") {
                 Text("Passwords and other concealed/transient clips are always skipped.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -46,6 +55,7 @@ struct SettingsView: View {
     private var bindingMaxAge: Binding<Int> { .init(get: { preferences.maxAgeDays }, set: { preferences.maxAgeDays = $0; preferences.objectWillChange.send() }) }
     private var bindingMaxImageMB: Binding<Int> { .init(get: { preferences.maxImageMB }, set: { preferences.maxImageMB = $0; preferences.objectWillChange.send() }) }
     private var bindingMaxSingle: Binding<Int> { .init(get: { preferences.maxSingleImageMB }, set: { preferences.maxSingleImageMB = $0; preferences.objectWillChange.send() }) }
+    private var bindingPopupPosition: Binding<String> { .init(get: { preferences.popupPosition }, set: { preferences.popupPosition = $0; preferences.objectWillChange.send() }) }
 
     private func addExclusion() {
         let id = newExclusion.trimmingCharacters(in: .whitespaces)

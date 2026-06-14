@@ -39,7 +39,8 @@ enum CaretLocator {
 
         var cg = CGRect.zero
         guard AXValueGetValue(boundsRef as! AXValue, .cgRect, &cg), cg.width > 0 || cg.height > 0 else { return nil }
-        return cocoaRect(fromCGScreen: cg)
+        guard let rect = cocoaRect(fromCGScreen: cg), isPlausible(rect) else { return nil }
+        return rect
     }
 
     private static func elementFrame(of element: AXUIElement) -> CGRect? {
@@ -54,15 +55,27 @@ enum CaretLocator {
         guard AXValueGetValue(posRef as! AXValue, .cgPoint, &pos),
               AXValueGetValue(sizeRef as! AXValue, .cgSize, &size),
               size.width > 0, size.height > 0 else { return nil }
-        return cocoaRect(fromCGScreen: CGRect(origin: pos, size: size))
+        guard let rect = cocoaRect(fromCGScreen: CGRect(origin: pos, size: size)), isPlausible(rect) else { return nil }
+        return rect
     }
 
     /// Ask a Chromium/Electron app to enable its accessibility tree. No-op for other apps.
+    /// Sets BOTH known flags: `AXManualAccessibility` is buggy/unsupported in some Electron
+    /// versions (electron #37465), while `AXEnhancedUserInterface` works on more of them but
+    /// is broader — we only set it on the app the popup is actually targeting.
     private static func enableChromiumAccessibility(for element: AXUIElement) {
         var pid: pid_t = 0
         guard AXUIElementGetPid(element, &pid) == .success else { return }
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        AXUIElementSetAttributeValue(app, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
+    }
+
+    /// Reject obviously-bogus geometry — Electron apps sometimes report rects like
+    /// `{0, screenHeight}` or zero/huge sizes. A usable anchor must sit on a real screen.
+    private static func isPlausible(_ rect: CGRect) -> Bool {
+        guard rect.height > 0, rect.height < 2000, rect.width >= 0, rect.width < 6000 else { return false }
+        return NSScreen.screens.contains { $0.frame.intersects(rect) }
     }
 
     /// Convert a CG global rect (top-left origin, y-down) to Cocoa global (bottom-left, y-up),
