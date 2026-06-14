@@ -46,6 +46,7 @@ struct ClipRowView: View {
             if let file = clip.thumbFile,
                let img = NSImage(contentsOf: thumbsDir.appendingPathComponent(file)) {
                 Image(nsImage: img).resizable().scaledToFill()
+                    .frame(width: 30, height: 22)
                     .clipShape(RoundedRectangle(cornerRadius: 4))
             } else {
                 Image(systemName: "photo").foregroundStyle(.secondary)
