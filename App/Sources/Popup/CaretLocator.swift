@@ -2,12 +2,14 @@
 import AppKit
 import ApplicationServices
 
-/// Best-effort location of the text insertion caret in the currently focused UI element,
-/// via the Accessibility API. Returns the caret rect in Cocoa global screen coordinates
-/// (bottom-left origin), or nil when the focused app doesn't expose caret geometry
-/// (e.g. some Electron apps, terminals, or web inputs) — callers should fall back.
+/// Best-effort anchor for the popup, via the Accessibility API:
+///   1. the text insertion caret of the focused element (works in native fields, and in
+///      Chromium/Electron apps once their accessibility tree is enabled — see below),
+///   2. else the focused element's frame (so we still open near the field),
+///   3. else nil, and the caller falls back to the mouse.
+/// Returns a rect in Cocoa global screen coordinates (bottom-left origin).
 enum CaretLocator {
-    static func caretRect() -> CGRect? {
+    static func anchorRect() -> CGRect? {
         let system = AXUIElementCreateSystemWide()
 
         var focusedRef: CFTypeRef?
@@ -15,32 +17,59 @@ enum CaretLocator {
               let focusedRef else { return nil }
         let element = focusedRef as! AXUIElement
 
-        // The caret is the selected text range (usually zero-length).
+        // Electron/Chromium keep accessibility off until asked. Setting AXManualAccessibility
+        // on the owning app turns it on; the tree builds asynchronously, so the caret may only
+        // become available on a subsequent open — but after that the path below works.
+        enableChromiumAccessibility(for: element)
+
+        if let caret = caretRect(of: element) { return caret }
+        if let frame = elementFrame(of: element) { return frame }
+        return nil
+    }
+
+    private static func caretRect(of element: AXUIElement) -> CGRect? {
         var rangeRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeRef) == .success,
               let rangeRef else { return nil }
-        let axRange = rangeRef as! AXValue
 
-        // Bounds for that range, in CG global screen coords (top-left origin, y-down).
         var boundsRef: CFTypeRef?
         guard AXUIElementCopyParameterizedAttributeValue(
-                element, kAXBoundsForRangeParameterizedAttribute as CFString, axRange, &boundsRef) == .success,
+                element, kAXBoundsForRangeParameterizedAttribute as CFString, rangeRef as! AXValue, &boundsRef) == .success,
               let boundsRef else { return nil }
-        var cgRect = CGRect.zero
-        guard AXValueGetValue(boundsRef as! AXValue, .cgRect, &cgRect) else { return nil }
 
-        // A degenerate all-zero rect means there's no usable caret geometry.
-        guard cgRect.height > 0 || cgRect.width > 0 else { return nil }
-
-        return cocoaRect(fromCGScreen: cgRect)
+        var cg = CGRect.zero
+        guard AXValueGetValue(boundsRef as! AXValue, .cgRect, &cg), cg.width > 0 || cg.height > 0 else { return nil }
+        return cocoaRect(fromCGScreen: cg)
     }
 
-    /// Convert a CG global rect (top-left origin, y-down) to Cocoa global (bottom-left, y-up).
-    /// The flip is relative to the primary display (the screen whose Cocoa frame origin is (0,0)).
+    private static func elementFrame(of element: AXUIElement) -> CGRect? {
+        var posRef: CFTypeRef?
+        var sizeRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success, let posRef,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success, let sizeRef
+        else { return nil }
+
+        var pos = CGPoint.zero
+        var size = CGSize.zero
+        guard AXValueGetValue(posRef as! AXValue, .cgPoint, &pos),
+              AXValueGetValue(sizeRef as! AXValue, .cgSize, &size),
+              size.width > 0, size.height > 0 else { return nil }
+        return cocoaRect(fromCGScreen: CGRect(origin: pos, size: size))
+    }
+
+    /// Ask a Chromium/Electron app to enable its accessibility tree. No-op for other apps.
+    private static func enableChromiumAccessibility(for element: AXUIElement) {
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success else { return }
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+    }
+
+    /// Convert a CG global rect (top-left origin, y-down) to Cocoa global (bottom-left, y-up),
+    /// flipped about the primary display (the screen whose Cocoa frame origin is (0,0)).
     private static func cocoaRect(fromCGScreen cg: CGRect) -> CGRect? {
         guard let primaryHeight = (NSScreen.screens.first { $0.frame.origin == .zero }?.frame.height)
                 ?? NSScreen.main?.frame.height else { return nil }
-        let flippedY = primaryHeight - cg.origin.y - cg.height
-        return CGRect(x: cg.origin.x, y: flippedY, width: cg.width, height: cg.height)
+        return CGRect(x: cg.origin.x, y: primaryHeight - cg.origin.y - cg.height, width: cg.width, height: cg.height)
     }
 }

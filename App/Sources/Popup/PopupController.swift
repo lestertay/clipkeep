@@ -70,8 +70,8 @@ final class PopupController {
         let size = panel.frame.size
 
         let anchorTopLeft: NSPoint
-        if let caret = CaretLocator.caretRect() {
-            anchorTopLeft = NSPoint(x: caret.minX, y: caret.minY - 6)   // just below the caret
+        if let anchor = CaretLocator.anchorRect() {
+            anchorTopLeft = NSPoint(x: anchor.minX, y: anchor.minY - 6)   // just below the caret/field
         } else {
             let mouse = NSEvent.mouseLocation
             anchorTopLeft = NSPoint(x: mouse.x - 16, y: mouse.y - 16)
