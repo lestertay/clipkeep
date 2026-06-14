@@ -37,7 +37,7 @@ final class PopupController {
         let size = NSSize(width: 360, height: 420)
         let panel = PopupPanel(contentRect: NSRect(origin: .zero, size: size))
         panel.contentView = hosting
-        positionAtCursor(panel)
+        positionPanel(panel)   // query caret BEFORE the panel takes key
         panel.makeKeyAndOrderFront(nil)
         self.panel = panel
 
@@ -62,18 +62,27 @@ final class PopupController {
         panel = nil
     }
 
-    /// Position the panel near the mouse cursor, on the cursor's screen,
-    /// clamped so the whole panel stays within that screen's visible area.
-    private func positionAtCursor(_ panel: NSPanel) {
-        let mouse = NSEvent.mouseLocation   // global screen coords, bottom-left origin
+    /// Position the panel just below the text insertion caret of the focused app.
+    /// Falls back to the mouse cursor for apps that don't expose caret geometry.
+    /// The chosen anchor is the desired top-left of the panel (Cocoa global coords);
+    /// the panel is then clamped to its screen's visible area.
+    private func positionPanel(_ panel: NSPanel) {
         let size = panel.frame.size
-        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+
+        let anchorTopLeft: NSPoint
+        if let caret = CaretLocator.caretRect() {
+            anchorTopLeft = NSPoint(x: caret.minX, y: caret.minY - 6)   // just below the caret
+        } else {
+            let mouse = NSEvent.mouseLocation
+            anchorTopLeft = NSPoint(x: mouse.x - 16, y: mouse.y - 16)
+        }
+
+        // Panel origin is bottom-left; place its top-left at the anchor.
+        var x = anchorTopLeft.x
+        var y = anchorTopLeft.y - size.height
+
+        let screen = NSScreen.screens.first { $0.frame.contains(anchorTopLeft) } ?? NSScreen.main
         let visible = screen?.visibleFrame ?? NSRect(origin: .zero, size: size)
-
-        // Cursor sits just inside the panel's top-left; panel extends down-right.
-        var x = mouse.x - 16
-        var y = mouse.y - size.height + 16
-
         x = min(max(x, visible.minX), visible.maxX - size.width)
         y = min(max(y, visible.minY), visible.maxY - size.height)
         panel.setFrameOrigin(NSPoint(x: x, y: y))
