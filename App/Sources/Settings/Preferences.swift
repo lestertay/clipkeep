@@ -32,7 +32,7 @@ final class Preferences: ObservableObject {
             Keys.respectConcealed: true,
             Keys.excludedBundleIDs: [String](),
             Keys.paused: false,
-            Keys.popupPosition: PopupPosition.caret.rawValue,
+            Keys.popupPosition: PopupPosition.center.rawValue,
         ])
     }
 
@@ -53,7 +53,7 @@ final class Preferences: ObservableObject {
     var maxSingleImageMB: Int { get { defaults.integer(forKey: Keys.maxSingleImageMB) } set { defaults.set(newValue, forKey: Keys.maxSingleImageMB) } }
     var excludedBundleIDs: [String] { get { defaults.stringArray(forKey: Keys.excludedBundleIDs) ?? [] } set { defaults.set(newValue, forKey: Keys.excludedBundleIDs) } }
     var paused: Bool { get { defaults.bool(forKey: Keys.paused) } set { defaults.set(newValue, forKey: Keys.paused) } }
-    var popupPosition: String { get { defaults.string(forKey: Keys.popupPosition) ?? PopupPosition.caret.rawValue } set { defaults.set(newValue, forKey: Keys.popupPosition) } }
+    var popupPosition: String { get { defaults.string(forKey: Keys.popupPosition) ?? PopupPosition.center.rawValue } set { defaults.set(newValue, forKey: Keys.popupPosition) } }
 
     var maxAge: TimeInterval { TimeInterval(maxAgeDays) * 86_400 }
     var maxImageBytes: Int { maxImageMB * 1024 * 1024 }

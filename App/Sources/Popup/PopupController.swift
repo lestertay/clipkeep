@@ -107,7 +107,10 @@ final class PopupController {
     }
 
     private func centerAnchor(for size: NSSize) -> NSPoint {
-        let vf = NSScreen.main?.visibleFrame ?? NSRect(origin: .zero, size: size)
+        // Center on the display the cursor is on (correct for multi-monitor).
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+        let vf = screen?.visibleFrame ?? NSRect(origin: .zero, size: size)
         return NSPoint(x: vf.midX - size.width / 2, y: vf.midY + size.height / 2)
     }
 }
